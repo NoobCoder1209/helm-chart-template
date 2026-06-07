@@ -31,7 +31,7 @@ spec:
       command: ["/bin/sh", "-c"]
       args:
         - >-
-          wget --spider -S "http://{{ include "http-echo.fullname" . }}:{{ .Values.service.port }}/" 2>&1
+          wget -T 5 -t 2 --spider -S "http://{{ include "http-echo.fullname" . }}:{{ .Values.service.port }}/" 2>&1
           | grep -q "HTTP/.* 200"
       resources:
         requests:

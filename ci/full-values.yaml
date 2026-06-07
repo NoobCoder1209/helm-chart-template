@@ -32,8 +32,9 @@ configMap:
 
 secret:
   enabled: true
+  # CI test fixture; not a credential.
   stringData:
-    API_TOKEN: not-a-real-token
+    DEMO_VALUE: ci-fake-value
 
 networkPolicy:
   enabled: true

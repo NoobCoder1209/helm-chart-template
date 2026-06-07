@@ -63,3 +63,19 @@ Create the name of the service account to use.
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Default affinity used when .Values.affinity is empty.
+Soft pod-anti-affinity by hostname so replicas spread across nodes.
+Uses selectorLabels so it stays correct under nameOverride/fullnameOverride.
+*/}}
+{{- define "http-echo.defaultAffinity" -}}
+podAntiAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            {{- include "http-echo.selectorLabels" . | nindent 12 }}
+        topologyKey: kubernetes.io/hostname
+{{- end }}

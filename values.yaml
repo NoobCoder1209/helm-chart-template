@@ -214,18 +214,12 @@ networkPolicy:
 
 nodeSelector: {}
 tolerations: []
-# Default soft pod-anti-affinity by hostname spreads replicas across nodes.
-# Override with `affinity: {}` to disable, or replace with required affinity
-# for a stricter policy.
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: http-echo
-          topologyKey: kubernetes.io/hostname
+# -- Pod affinity. When empty, the chart synthesizes a soft pod-anti-affinity
+# rule (preferred, weight 100) that spreads replicas across nodes by hostname,
+# using the chart's selectorLabels — so it stays correct under `nameOverride`.
+# Set to `{ }` (the default) to use the synthesized rule, or provide a full
+# affinity spec to override entirely.
+affinity: {}
 topologySpreadConstraints: []
 
 # -- Extra environment variables on the container (beyond envFrom).
