@@ -16,7 +16,9 @@ metadata:
     app.kubernetes.io/component: test
   annotations:
     "helm.sh/hook": test
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # before-hook-creation only — keep the pod after success so `helm test --logs`
+    # can read its output. The next `helm test` run cleans up the previous pod.
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   restartPolicy: Never
   securityContext:
