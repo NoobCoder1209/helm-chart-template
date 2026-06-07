@@ -41,6 +41,11 @@ podAnnotations: {}
 podLabels: {}
 
 # Pod-level securityContext (restricted Pod Security Standard).
+# uid 65532 is the conventional "nonroot" uid (also used by distroless).
+# http-echo:0.2.3 is FROM scratch with no /etc/passwd, but the kernel only cares
+# about the numeric uid, so this works as long as the binary doesn't need to
+# write or look up its own user. fsGroup is a no-op today (only emptyDir mounts)
+# but is set prophylactically for future PVC additions.
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532
@@ -50,6 +55,8 @@ podSecurityContext:
     type: RuntimeDefault
 
 # Container-level securityContext (restricted Pod Security Standard).
+# readOnlyRootFilesystem: true is paired with an emptyDir mounted at /tmp by
+# the Deployment template; http-echo itself does not write to disk.
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -139,9 +146,12 @@ podDisruptionBudget:
   # -- Minimum available pods. Mutually exclusive with maxUnavailable.
   minAvailable: null
 
-# Non-secret env, mounted via envFrom on the container.
+# Non-secret env. Disabled by default; flip to true and add `data:` entries to
+# mount a ConfigMap via envFrom on the container. Empty data + enabled=true
+# would produce a useless empty ConfigMap, so the deployment also gates on
+# `data` being non-empty.
 configMap:
-  enabled: true
+  enabled: false
   # -- Key/value map of environment variables.
   data: {}
 

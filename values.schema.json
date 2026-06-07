@@ -1,9 +1,12 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "http-echo chart values",
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "global":            { "type": "object" },
+    "commonLabels":      { "type": "object", "additionalProperties": { "type": "string" } },
+    "commonAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
     "replicaCount": {
       "type": "integer",
       "minimum": 0
@@ -59,7 +62,12 @@
       "properties": {
         "type":        { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
         "port":        { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "targetPort":  { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "targetPort":  {
+          "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 65535 },
+            { "type": "string",  "minLength": 1, "maxLength": 15 }
+          ]
+        },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
       }
     },
@@ -142,7 +150,23 @@
         "enabled":        { "type": "boolean" },
         "maxUnavailable": { "type": ["integer", "string", "null"] },
         "minAvailable":   { "type": ["integer", "string", "null"] }
-      }
+      },
+      "allOf": [
+        {
+          "comment": "maxUnavailable and minAvailable are mutually exclusive in PDB spec.",
+          "not": {
+            "anyOf": [
+              {
+                "properties": {
+                  "maxUnavailable": { "type": ["integer", "string"] },
+                  "minAvailable":   { "type": ["integer", "string"] }
+                },
+                "required": ["maxUnavailable", "minAvailable"]
+              }
+            ]
+          }
+        }
+      ]
     },
     "configMap": {
       "type": "object",
@@ -197,11 +221,15 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["name"],
         "properties": {
-          "name":      { "type": "string" },
+          "name":      { "type": "string", "minLength": 1 },
           "value":     { "type": "string" },
           "valueFrom": { "type": "object" }
+        },
+        "not": {
+          "required": ["value", "valueFrom"]
         }
       }
     },
@@ -216,8 +244,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "cpu":    { "type": ["string", "integer"] },
-        "memory": { "type": "string" }
+        "cpu":               { "type": ["string", "integer"] },
+        "memory":            { "type": "string" },
+        "ephemeral-storage": { "type": "string" }
+      },
+      "patternProperties": {
+        "^[a-zA-Z0-9][a-zA-Z0-9./_-]*$": { "type": ["string", "integer"] }
       }
     }
   }
