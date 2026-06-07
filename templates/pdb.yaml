@@ -1,0 +1,25 @@
+{{- /*
+Render a PDB only when there are at least two replicas to budget against.
+- replicaCount > 1 (when autoscaling is off), or
+- autoscaling.minReplicas > 1 (when autoscaling is on).
+A PDB on a single-replica workload would block all voluntary evictions.
+*/ -}}
+{{- $singleReplica := and (not .Values.autoscaling.enabled) (le (int .Values.replicaCount) 1) }}
+{{- $minReplicasOne := and .Values.autoscaling.enabled (le (int .Values.autoscaling.minReplicas) 1) }}
+{{- if and .Values.podDisruptionBudget.enabled (not $singleReplica) (not $minReplicasOne) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "http-echo.fullname" . }}
+  labels:
+    {{- include "http-echo.labels" . | nindent 4 }}
+spec:
+  {{- if not (kindIs "invalid" .Values.podDisruptionBudget.maxUnavailable) }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- else if not (kindIs "invalid" .Values.podDisruptionBudget.minAvailable) }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "http-echo.selectorLabels" . | nindent 6 }}
+{{- end }}
