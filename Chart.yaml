@@ -1,0 +1,16 @@
+apiVersion: v2
+name: http-echo
+description: Production-shaped Helm chart starter for a generic stateless HTTP service
+type: application
+version: 0.1.0
+appVersion: "0.2.3"
+kubeVersion: ">=1.28.0-0"
+home: https://github.com/NoobCoder1209/helm-chart-template
+sources:
+  - https://github.com/NoobCoder1209/helm-chart-template
+maintainers:
+  - name: NoobCoder1209
+    url: https://github.com/NoobCoder1209
+icon: https://raw.githubusercontent.com/cncf/artwork/main/projects/helm/icon/color/helm-icon-color.svg
+annotations:
+  artifacthub.io/license: MIT

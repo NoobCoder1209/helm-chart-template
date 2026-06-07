@@ -1,0 +1,21 @@
+# Helm
+*.tgz
+*.tgz.prov
+Chart.lock
+requirements.lock
+charts/
+
+# Local-only values overrides
+values.local.yaml
+values.*.local.yaml
+
+# Build artifacts
+/bin/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
