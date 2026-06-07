@@ -1,0 +1,52 @@
+name: smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: kind smoke (${{ matrix.values }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        values: [minimal-values, full-values]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+          node_image: kindest/node:v1.28.13
+          cluster_name: smoke
+          wait: 120s
+
+      - name: Helm install
+        run: |
+          helm install http-echo . \
+            -f ci/${{ matrix.values }}.yaml \
+            --namespace smoke --create-namespace \
+            --wait --timeout 5m
+
+      - name: Helm test
+        run: helm test http-echo --namespace smoke --logs
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n smoke get all
+          kubectl -n smoke describe pods
+          kubectl -n smoke logs -l app.kubernetes.io/instance=http-echo --tail=200 || true
+          kubectl get events -n smoke --sort-by=.lastTimestamp || true

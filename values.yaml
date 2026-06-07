@@ -145,6 +145,10 @@ podDisruptionBudget:
   maxUnavailable: 1
   # -- Minimum available pods. Mutually exclusive with maxUnavailable.
   minAvailable: null
+  # -- Eviction policy for unhealthy pods. AlwaysAllow lets unhealthy pods be
+  # evicted regardless of the budget; IfHealthyBudget blocks until the budget
+  # is met. AlwaysAllow is the safe default for stateless services.
+  unhealthyPodEvictionPolicy: AlwaysAllow
 
 # Non-secret env. Disabled by default; flip to true and add `data:` entries to
 # mount a ConfigMap via envFrom on the container. Empty data + enabled=true
@@ -210,6 +214,11 @@ networkPolicy:
 
 nodeSelector: {}
 tolerations: []
+# -- Pod affinity. When empty, the chart synthesizes a soft pod-anti-affinity
+# rule (preferred, weight 100) that spreads replicas across nodes by hostname,
+# using the chart's selectorLabels — so it stays correct under `nameOverride`.
+# Set to `{ }` (the default) to use the synthesized rule, or provide a full
+# affinity spec to override entirely.
 affinity: {}
 topologySpreadConstraints: []
 

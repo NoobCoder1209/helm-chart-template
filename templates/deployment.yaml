@@ -111,9 +111,12 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- if .Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else }}
+      affinity:
+        {{- include "http-echo.defaultAffinity" . | nindent 8 }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
