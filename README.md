@@ -5,8 +5,6 @@
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.2.3](https://img.shields.io/badge/AppVersion-0.2.3-informational?style=flat-square)
 
-Production-shaped Helm chart starter for a generic stateless HTTP service
-
 The chart deploys a stateless HTTP service (defaults to [`hashicorp/http-echo`](https://hub.docker.com/r/hashicorp/http-echo)) with the manifests you'd actually want in production — non-root + read-only-root-fs `securityContext`, pinned image tag, startup/liveness/readiness probes, HPA, PDB, NetworkPolicy, optional Ingress, optional ExternalSecret, default soft pod-anti-affinity, and a JSON schema that fails fast on bad values.
 
 ## What it shows
@@ -69,15 +67,13 @@ The plain `Secret` template stops rendering automatically — the chart enforces
 
 ## Verification
 
-| Gate | What it catches |
-|---|---|
-| `helm lint .` | Chart structure, schema parse errors |
-| `helm template . \| kubeconform -strict -kubernetes-version 1.28.0` | Invalid k8s manifests |
-| `helm template . \| kube-linter lint -` | PDB without `unhealthyPodEvictionPolicy`, missing anti-affinity, unset resource requirements, latest-tag, default SA, etc. |
-| `kind` + `helm install --wait` + `helm test` | Real apply, real probes, real connectivity |
-| `values.schema.json` | Type errors, enum violations, mutex violations on `--set` |
+The chart is gated by five layers, four of which run in CI on every PR (`lint.yml` and `smoke.yml`):
 
-CI runs the first four on every PR (`lint.yml` and `smoke.yml`).
+- **`helm lint .`** — chart structure, schema parse errors.
+- **`helm template . | kubeconform -strict -kubernetes-version 1.28.0`** — invalid Kubernetes manifests.
+- **`helm template . | kube-linter lint -`** — PDB without `unhealthyPodEvictionPolicy`, missing anti-affinity, unset resource requirements, latest-tag, default ServiceAccount, etc.
+- **`kind` + `helm install --wait` + `helm test`** — real apply, real probes, real connectivity.
+- **`values.schema.json`** — type errors, enum violations, mutex violations on `--set`.
 
 ## Requirements
 

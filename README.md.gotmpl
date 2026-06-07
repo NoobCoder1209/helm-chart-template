@@ -7,8 +7,6 @@
 
 {{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
 
-{{ template "chart.description" . }}
-
 The chart deploys a stateless HTTP service (defaults to [`hashicorp/http-echo`](https://hub.docker.com/r/hashicorp/http-echo)) with the manifests you'd actually want in production — non-root + read-only-root-fs `securityContext`, pinned image tag, startup/liveness/readiness probes, HPA, PDB, NetworkPolicy, optional Ingress, optional ExternalSecret, default soft pod-anti-affinity, and a JSON schema that fails fast on bad values.
 
 ## What it shows
@@ -48,8 +46,8 @@ helm template demo . --set replicaCount=foo
 
 ```sh
 # Bump Chart.yaml `version:`, commit, then:
-git tag v0.1.0
-git push origin v0.1.0
+git tag v{{ .Version }}
+git push origin v{{ .Version }}
 # release.yml verifies the tag matches Chart.yaml and pushes the chart
 # to oci://ghcr.io/<owner>/charts on GHCR.
 ```
@@ -71,15 +69,13 @@ The plain `Secret` template stops rendering automatically — the chart enforces
 
 ## Verification
 
-| Gate | What it catches |
-|---|---|
-| `helm lint .` | Chart structure, schema parse errors |
-| `helm template . \| kubeconform -strict -kubernetes-version 1.28.0` | Invalid k8s manifests |
-| `helm template . \| kube-linter lint -` | PDB without `unhealthyPodEvictionPolicy`, missing anti-affinity, unset resource requirements, latest-tag, default SA, etc. |
-| `kind` + `helm install --wait` + `helm test` | Real apply, real probes, real connectivity |
-| `values.schema.json` | Type errors, enum violations, mutex violations on `--set` |
+The chart is gated by five layers, four of which run in CI on every PR (`lint.yml` and `smoke.yml`):
 
-CI runs the first four on every PR (`lint.yml` and `smoke.yml`).
+- **`helm lint .`** — chart structure, schema parse errors.
+- **`helm template . | kubeconform -strict -kubernetes-version 1.28.0`** — invalid Kubernetes manifests.
+- **`helm template . | kube-linter lint -`** — PDB without `unhealthyPodEvictionPolicy`, missing anti-affinity, unset resource requirements, latest-tag, default ServiceAccount, etc.
+- **`kind` + `helm install --wait` + `helm test`** — real apply, real probes, real connectivity.
+- **`values.schema.json`** — type errors, enum violations, mutex violations on `--set`.
 
 {{ template "chart.requirementsSection" . }}
 
