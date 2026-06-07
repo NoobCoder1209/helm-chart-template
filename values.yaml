@@ -1,0 +1,204 @@
+# Default values for http-echo.
+# Every value here is documented in README.md (auto-generated via helm-docs).
+
+# -- Number of replicas. Ignored when autoscaling.enabled=true.
+replicaCount: 2
+
+image:
+  # -- Container image repository.
+  repository: hashicorp/http-echo
+  # -- Image tag. Pinned to a specific version; do not use "latest" in production.
+  tag: "0.2.3"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets, e.g. `[{name: my-registry-secret}]`.
+imagePullSecrets: []
+
+# -- Override the chart name in resource names.
+nameOverride: ""
+# -- Override the full resource name (release-name + chart name) entirely.
+fullnameOverride: ""
+
+# -- Args passed to the http-echo binary. Default echoes a string on /.
+args:
+  - "-text=hello from helm-chart-template"
+  - "-listen=:5678"
+
+serviceAccount:
+  # -- Whether to create a dedicated ServiceAccount.
+  create: true
+  # -- Annotations on the ServiceAccount (e.g. for IRSA / Workload Identity).
+  annotations: {}
+  # -- Override the ServiceAccount name. When empty, uses the chart fullname.
+  name: ""
+  # -- Whether the ServiceAccount token is automounted.
+  automount: true
+
+# -- Extra annotations on every Pod.
+podAnnotations: {}
+# -- Extra labels on every Pod.
+podLabels: {}
+
+# Pod-level securityContext (restricted Pod Security Standard).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level securityContext (restricted Pod Security Standard).
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port (cluster-side).
+  port: 80
+  # -- Container port the Service forwards to. http-echo listens on 5678.
+  targetPort: 5678
+  # -- Annotations on the Service.
+  annotations: {}
+
+ingress:
+  # -- Enable Ingress object.
+  enabled: false
+  # -- IngressClass name. Leave empty to omit `ingressClassName`.
+  className: "nginx"
+  # -- Annotations on the Ingress.
+  annotations: {}
+  # -- Hosts and paths.
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- TLS config, e.g. `[{secretName: chart-example-tls, hosts: [chart-example.local]}]`.
+  tls: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Probes. http-echo serves any path with HTTP 200, so `/` is a fine target.
+probes:
+  startup:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    periodSeconds: 10
+    failureThreshold: 30
+    timeoutSeconds: 1
+  liveness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 5
+  readiness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler. When true, replicaCount is ignored.
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  # -- Target average CPU utilization percentage. Set to null to disable.
+  targetCPUUtilizationPercentage: 75
+  # -- Target average memory utilization percentage. Set to null to disable.
+  targetMemoryUtilizationPercentage: 80
+  # -- Optional `behavior` block (HPA v2). Empty by default.
+  behavior: {}
+
+podDisruptionBudget:
+  # -- Enable a PodDisruptionBudget. Skipped when replicaCount=1.
+  enabled: true
+  # -- Maximum unavailable pods during voluntary disruption.
+  maxUnavailable: 1
+  # -- Minimum available pods. Mutually exclusive with maxUnavailable.
+  minAvailable: null
+
+# Non-secret env, mounted via envFrom on the container.
+configMap:
+  enabled: true
+  # -- Key/value map of environment variables.
+  data: {}
+
+# Plain Secret. Disabled by default. Mutually exclusive with externalSecrets.enabled.
+secret:
+  enabled: false
+  # -- Pre-base64-encoded values.
+  data: {}
+  # -- Plaintext values (Helm encodes them).
+  stringData: {}
+
+externalSecrets:
+  # -- Render an ExternalSecret instead of a plain Secret. Requires the External
+  # Secrets Operator (https://external-secrets.io) and a configured SecretStore.
+  enabled: false
+  # -- Refresh interval for the ExternalSecret.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- SecretStore (namespaced) or ClusterSecretStore.
+    kind: SecretStore
+    # -- Required when externalSecrets.enabled=true.
+    name: ""
+  # -- Owner | Orphan | Merge | None.
+  creationPolicy: Owner
+  # -- Per-key references.
+  remoteRefs: []
+  # Example:
+  # - secretKey: API_TOKEN
+  #   remoteRef:
+  #     key: prod/http-echo
+  #     property: api_token
+  # -- Bulk references (e.g. `extract:` or `find:`).
+  dataFrom: []
+
+networkPolicy:
+  # -- Enable a default-deny NetworkPolicy that allows same-namespace ingress and kube-dns egress.
+  enabled: false
+  # -- Extra `ingress.from` entries appended to the same-namespace rule.
+  ingressFrom: []
+  # -- Extra `egress.to` entries appended to the kube-dns rule.
+  egressTo: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+# -- Extra environment variables on the container (beyond envFrom).
+env: []
+
+# -- Extra volumes (in addition to the emptyDir for /tmp).
+extraVolumes: []
+# -- Extra volume mounts (in addition to /tmp).
+extraVolumeMounts: []
+
+# -- Pod priorityClassName. Empty string omits the field.
+priorityClassName: ""
+
+revisionHistoryLimit: 5
+terminationGracePeriodSeconds: 30

@@ -1,0 +1,14 @@
+# Helm
+*.tgz
+Chart.lock
+charts/
+
+# Build artifacts
+/bin/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

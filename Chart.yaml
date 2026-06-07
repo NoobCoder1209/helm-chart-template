@@ -1,0 +1,13 @@
+apiVersion: v2
+name: http-echo
+description: Production-shaped Helm chart starter for a generic stateless HTTP service
+type: application
+version: 0.1.0
+appVersion: "0.2.3"
+kubeVersion: ">=1.28.0-0"
+home: https://github.com/aleksandar-chapkanov/helm-chart-template
+sources:
+  - https://github.com/aleksandar-chapkanov/helm-chart-template
+maintainers: []
+annotations:
+  artifacthub.io/license: MIT
