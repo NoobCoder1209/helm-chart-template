@@ -1,0 +1,109 @@
+name: smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: kind smoke (${{ matrix.values }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - values: minimal-values
+            mode: install
+          - values: full-values
+            mode: install
+          - values: externalsecrets-values
+            mode: lint-only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      # ---------- lint-only path (ESO CRDs not in vanilla kind) ----------
+      - name: Install kubeconform (lint-only)
+        if: matrix.mode == 'lint-only'
+        run: |
+          set -euo pipefail
+          KUBECONFORM_VERSION=v0.6.7
+          curl -sSLo kubeconform.tar.gz \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Helm lint (lint-only)
+        if: matrix.mode == 'lint-only'
+        run: helm lint . -f ci/${{ matrix.values }}.yaml
+
+      - name: Helm template + kubeconform (lint-only)
+        if: matrix.mode == 'lint-only'
+        run: |
+          helm template release . -f ci/${{ matrix.values }}.yaml \
+            | kubeconform \
+                -strict \
+                -ignore-missing-schemas \
+                -skip ExternalSecret,SecretStore,ClusterSecretStore \
+                -kubernetes-version 1.28.0 \
+                -summary
+
+      # ---------- install path ----------
+      - name: Create kind cluster
+        if: matrix.mode == 'install'
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+          node_image: kindest/node:v1.28.13
+          cluster_name: smoke
+          wait: 120s
+
+      - name: Helm install
+        if: matrix.mode == 'install'
+        run: |
+          helm install http-echo . \
+            -f ci/${{ matrix.values }}.yaml \
+            --namespace smoke --create-namespace \
+            --wait --timeout 5m
+
+      - name: Wait for Deployment availability
+        if: matrix.mode == 'install'
+        run: |
+          kubectl -n smoke get deploy
+          kubectl -n smoke wait \
+            --for=condition=Available \
+            --timeout=180s \
+            deploy -l app.kubernetes.io/instance=http-echo
+
+      - name: In-cluster curl probe
+        if: matrix.mode == 'install'
+        run: |
+          set -euo pipefail
+          OUT=$(kubectl -n smoke run curl-probe \
+            --image=curlimages/curl:8.10.1 \
+            --restart=Never \
+            --rm -i \
+            --command -- curl -fsS --max-time 10 "http://http-echo.smoke.svc.cluster.local/")
+          echo "Got response: $OUT"
+          echo "$OUT" | grep -q "hello from helm-chart-template"
+
+      - name: Helm test
+        if: matrix.mode == 'install'
+        run: helm test http-echo --namespace smoke --logs
+
+      - name: Diagnostics on failure
+        if: failure() && matrix.mode == 'install'
+        run: |
+          kubectl -n smoke get all
+          kubectl -n smoke describe pods
+          kubectl -n smoke logs -l app.kubernetes.io/instance=http-echo --tail=200 || true
+          kubectl get events -n smoke --sort-by=.lastTimestamp || true

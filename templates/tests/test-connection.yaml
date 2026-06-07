@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "http-echo.fullname" . }}-test-connection"
+  labels:
+    helm.sh/chart: {{ include "http-echo.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- if .Chart.AppVersion }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    {{- end }}
+    # Deliberately NOT using selectorLabels — those would make this pod match
+    # the chart's NetworkPolicy podSelector, blocking its own egress to the
+    # service.
+    app.kubernetes.io/name: {{ include "http-echo.name" . }}-test
+    app.kubernetes.io/instance: {{ .Release.Name }}-test
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: wget
+      image: busybox:1.36
+      command: ["/bin/sh", "-c"]
+      args:
+        - >-
+          wget --spider -S "http://{{ include "http-echo.fullname" . }}:{{ .Values.service.port }}/" 2>&1
+          | grep -q "HTTP/.* 200"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65532
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault

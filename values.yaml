@@ -145,6 +145,10 @@ podDisruptionBudget:
   maxUnavailable: 1
   # -- Minimum available pods. Mutually exclusive with maxUnavailable.
   minAvailable: null
+  # -- Eviction policy for unhealthy pods. AlwaysAllow lets unhealthy pods be
+  # evicted regardless of the budget; IfHealthyBudget blocks until the budget
+  # is met. AlwaysAllow is the safe default for stateless services.
+  unhealthyPodEvictionPolicy: AlwaysAllow
 
 # Non-secret env. Disabled by default; flip to true and add `data:` entries to
 # mount a ConfigMap via envFrom on the container. Empty data + enabled=true
@@ -210,7 +214,18 @@ networkPolicy:
 
 nodeSelector: {}
 tolerations: []
-affinity: {}
+# Default soft pod-anti-affinity by hostname spreads replicas across nodes.
+# Override with `affinity: {}` to disable, or replace with required affinity
+# for a stricter policy.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: http-echo
+          topologyKey: kubernetes.io/hostname
 topologySpreadConstraints: []
 
 # -- Extra environment variables on the container (beyond envFrom).

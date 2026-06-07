@@ -1,0 +1,51 @@
+# Full: exercises every optional path the chart can render, except ESO (covered separately).
+# Note: HPA + replicaCount=3 is intentional — HPA wins (the Deployment omits replicas:),
+# but replicaCount is preserved as a sensible fallback if autoscaling is later disabled.
+replicaCount: 3
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: debug
+    GREETING: hello
+
+secret:
+  enabled: true
+  stringData:
+    API_TOKEN: not-a-real-token
+
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example
+
+podAnnotations:
+  example.com/scrape: "true"
+
+env:
+  - name: EXTRA_VAR
+    value: extra

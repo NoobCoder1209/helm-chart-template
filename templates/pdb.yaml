@@ -19,6 +19,7 @@ spec:
   {{- else if not (kindIs "invalid" .Values.podDisruptionBudget.minAvailable) }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
   {{- end }}
+  unhealthyPodEvictionPolicy: {{ .Values.podDisruptionBudget.unhealthyPodEvictionPolicy }}
   selector:
     matchLabels:
       {{- include "http-echo.selectorLabels" . | nindent 6 }}
