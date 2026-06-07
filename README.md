@@ -3,6 +3,8 @@
 [![lint](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/lint.yml/badge.svg)](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/lint.yml)
 [![smoke](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/smoke.yml/badge.svg)](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/smoke.yml)
 
+![CI passing](docs/screenshots/ci-passing.png)
+
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.2.3](https://img.shields.io/badge/AppVersion-0.2.3-informational?style=flat-square)
 
 The chart deploys a stateless HTTP service (defaults to [`hashicorp/http-echo`](https://hub.docker.com/r/hashicorp/http-echo)) with the manifests you'd actually want in production — non-root + read-only-root-fs `securityContext`, pinned image tag, startup/liveness/readiness probes, HPA, PDB, NetworkPolicy, optional Ingress, optional ExternalSecret, default soft pod-anti-affinity, and a JSON schema that fails fast on bad values.
