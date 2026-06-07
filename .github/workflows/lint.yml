@@ -77,3 +77,22 @@ jobs:
             helm template release . -f "$f" | kube-linter lint -
             echo "::endgroup::"
           done
+
+      - name: Install helm-docs
+        run: |
+          set -euo pipefail
+          HELM_DOCS_VERSION=v1.14.2
+          curl -sSLo helm-docs.tar.gz \
+            "https://github.com/norwoodj/helm-docs/releases/download/${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION#v}_Linux_x86_64.tar.gz"
+          tar -xzf helm-docs.tar.gz helm-docs
+          sudo mv helm-docs /usr/local/bin/
+          helm-docs --version
+
+      - name: helm-docs is up to date
+        run: |
+          set -euo pipefail
+          helm-docs
+          if ! git diff --exit-code README.md; then
+            echo "::error::README.md is out of date. Run 'helm-docs' locally and commit the result."
+            exit 1
+          fi

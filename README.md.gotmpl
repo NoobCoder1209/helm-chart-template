@@ -1,0 +1,94 @@
+# helm-chart-template — Production-shaped Helm chart starter
+
+[![lint](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/lint.yml/badge.svg)](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/lint.yml)
+[![smoke](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/smoke.yml/badge.svg)](https://github.com/NoobCoder1209/helm-chart-template/actions/workflows/smoke.yml)
+
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+The chart deploys a stateless HTTP service (defaults to [`hashicorp/http-echo`](https://hub.docker.com/r/hashicorp/http-echo)) with the manifests you'd actually want in production — non-root + read-only-root-fs `securityContext`, pinned image tag, startup/liveness/readiness probes, HPA, PDB, NetworkPolicy, optional Ingress, optional ExternalSecret, default soft pod-anti-affinity, and a JSON schema that fails fast on bad values.
+
+## What it shows
+
+- A complete, production-shaped Helm chart structured the way Bitnami / Grafana / ingress-nginx structure theirs.
+- `values.schema.json` (draft-07) catching `--set replicaCount=foo`, enum violations, typos at the root, and PDB `maxUnavailable`/`minAvailable` mutual-exclusion at install time.
+- An External Secrets Operator path (`external-secrets.io/v1`) gated behind `externalSecrets.enabled`, mutually exclusive with the plain `Secret`.
+- A NetworkPolicy default-deny posture with `ingressFrom`/`extraIngress` extension hooks.
+- CI that runs `helm lint`, renders + `kubeconform -strict`, runs `kube-linter`, and stands up a kind 1.28 cluster to `helm install`/`helm test` against every matrix entry on every PR.
+- An OCI release workflow that publishes the chart to GHCR on `vX.Y.Z` tags.
+
+## Skills demonstrated
+
+Helm · Kubernetes · GitOps · Production manifests · GitHub Actions · Chart Testing · kubeconform · kube-linter · External Secrets Operator · OCI registries · JSON Schema (draft-07)
+
+## Quick start
+
+```sh
+# Local install from this directory:
+helm install demo . --namespace demo --create-namespace
+helm test demo --namespace demo
+
+# Or pull from GHCR (requires a published release):
+helm install demo oci://ghcr.io/noobcoder1209/charts/http-echo \
+  --version {{ .Version }} \
+  --namespace demo --create-namespace
+```
+
+Try the schema:
+
+```sh
+helm template demo . --set replicaCount=foo
+# Error: at '/replicaCount': got string, want integer
+```
+
+## Releasing
+
+```sh
+# Bump Chart.yaml `version:`, commit, then:
+git tag v0.1.0
+git push origin v0.1.0
+# release.yml verifies the tag matches Chart.yaml and pushes the chart
+# to oci://ghcr.io/<owner>/charts on GHCR.
+```
+
+## ExternalSecrets
+
+Flip `externalSecrets.enabled=true` and provide a `secretStoreRef`:
+
+```sh
+helm install demo . \
+  --set externalSecrets.enabled=true \
+  --set externalSecrets.secretStoreRef.name=my-store \
+  --set 'externalSecrets.remoteRefs[0].secretKey=DEMO_VALUE' \
+  --set 'externalSecrets.remoteRefs[0].remoteRef.key=prod/http-echo' \
+  --set 'externalSecrets.remoteRefs[0].remoteRef.property=demo_value'
+```
+
+The plain `Secret` template stops rendering automatically — the chart enforces "one source of secret data, never both".
+
+## Verification
+
+| Gate | What it catches |
+|---|---|
+| `helm lint .` | Chart structure, schema parse errors |
+| `helm template . \| kubeconform -strict -kubernetes-version 1.28.0` | Invalid k8s manifests |
+| `helm template . \| kube-linter lint -` | PDB without `unhealthyPodEvictionPolicy`, missing anti-affinity, unset resource requirements, latest-tag, default SA, etc. |
+| `kind` + `helm install --wait` + `helm test` | Real apply, real probes, real connectivity |
+| `values.schema.json` | Type errors, enum violations, mutex violations on `--set` |
+
+CI runs the first four on every PR (`lint.yml` and `smoke.yml`).
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
+
+## License
+
+MIT — see [`LICENSE`](./LICENSE).
+
+---
+
+{{ template "helm-docs.versionFooter" . }}
