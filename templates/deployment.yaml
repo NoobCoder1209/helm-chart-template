@@ -15,11 +15,14 @@ spec:
   template:
     metadata:
       {{- $annotations := dict }}
-      {{- if .Values.configMap.enabled }}
+      {{- if and .Values.configMap.enabled (gt (len .Values.configMap.data) 0) }}
       {{- $annotations = merge $annotations (dict "checksum/config" (include (print $.Template.BasePath "/configmap.yaml") . | sha256sum)) }}
       {{- end }}
-      {{- if or .Values.secret.enabled .Values.externalSecrets.enabled }}
-      {{- $annotations = merge $annotations (dict "checksum/secret" (printf "%v-%v" .Values.secret .Values.externalSecrets | sha256sum)) }}
+      {{- if and .Values.secret.enabled (or .Values.secret.data .Values.secret.stringData) (not .Values.externalSecrets.enabled) }}
+      {{- $annotations = merge $annotations (dict "checksum/secret" (include (print $.Template.BasePath "/secret.yaml") . | sha256sum)) }}
+      {{- end }}
+      {{- if .Values.externalSecrets.enabled }}
+      {{- $annotations = merge $annotations (dict "checksum/externalsecret" (include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum)) }}
       {{- end }}
       {{- $annotations = merge $annotations .Values.podAnnotations }}
       {{- if $annotations }}
@@ -60,7 +63,12 @@ spec:
           {{- if and .Values.configMap.enabled (gt (len .Values.configMap.data) 0) }}
             {{- $envFrom = append $envFrom (dict "configMapRef" (dict "name" (include "http-echo.fullname" .))) }}
           {{- end }}
-          {{- if or (and .Values.secret.enabled (not .Values.externalSecrets.enabled)) .Values.externalSecrets.enabled }}
+          {{- $secretWillExist := or
+              (and .Values.secret.enabled
+                   (or .Values.secret.data .Values.secret.stringData)
+                   (not .Values.externalSecrets.enabled))
+              .Values.externalSecrets.enabled }}
+          {{- if $secretWillExist }}
             {{- $envFrom = append $envFrom (dict "secretRef" (dict "name" (include "http-echo.fullname" .))) }}
           {{- end }}
           {{- if gt (len $envFrom) 0 }}

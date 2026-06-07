@@ -189,10 +189,24 @@ externalSecrets:
 networkPolicy:
   # -- Enable a default-deny NetworkPolicy that allows same-namespace ingress and kube-dns egress.
   enabled: false
-  # -- Extra `ingress.from` entries appended to the same-namespace rule.
+  # -- Extra `ingress.from` peers appended to the same rule that targets the
+  # service port. Use for additional same-port sources (e.g. specific
+  # namespaceSelectors). Use `extraIngress` for rules that target other ports.
   ingressFrom: []
-  # -- Extra `egress.to` entries appended to the kube-dns rule.
+  # -- Extra `egress.to` peers appended to the kube-dns rule. Same caveat as
+  # `ingressFrom` — for distinct ports use `extraEgress`.
   egressTo: []
+  # -- Additional, fully-formed ingress rules (each with its own `from` and `ports`).
+  extraIngress: []
+  # Example:
+  # - from:
+  #     - ipBlock:
+  #         cidr: 10.0.0.0/8
+  #   ports:
+  #     - port: 9090
+  #       protocol: TCP
+  # -- Additional, fully-formed egress rules.
+  extraEgress: []
 
 nodeSelector: {}
 tolerations: []

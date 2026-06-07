@@ -1,25 +1,12 @@
-{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.replicaCount) 1) (not .Values.autoscaling.enabled) -}}
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ include "http-echo.fullname" . }}
-  labels:
-    {{- include "http-echo.labels" . | nindent 4 }}
-spec:
-  {{- if ne (toString .Values.podDisruptionBudget.maxUnavailable) "<nil>" }}
-  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
-  {{- else if ne (toString .Values.podDisruptionBudget.minAvailable) "<nil>" }}
-  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
-  {{- end }}
-  selector:
-    matchLabels:
-      {{- include "http-echo.selectorLabels" . | nindent 6 }}
-{{- else if and .Values.podDisruptionBudget.enabled .Values.autoscaling.enabled -}}
 {{- /*
-  When autoscaling is enabled, the HPA owns replica count. We still want a PDB
-  but only when minReplicas > 1, otherwise PDB blocks all evictions.
+Render a PDB only when there are at least two replicas to budget against.
+- replicaCount > 1 (when autoscaling is off), or
+- autoscaling.minReplicas > 1 (when autoscaling is on).
+A PDB on a single-replica workload would block all voluntary evictions.
 */ -}}
-{{- if gt (int .Values.autoscaling.minReplicas) 1 -}}
+{{- $singleReplica := and (not .Values.autoscaling.enabled) (le (int .Values.replicaCount) 1) }}
+{{- $minReplicasOne := and .Values.autoscaling.enabled (le (int .Values.autoscaling.minReplicas) 1) }}
+{{- if and .Values.podDisruptionBudget.enabled (not $singleReplica) (not $minReplicasOne) -}}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -27,13 +14,12 @@ metadata:
   labels:
     {{- include "http-echo.labels" . | nindent 4 }}
 spec:
-  {{- if ne (toString .Values.podDisruptionBudget.maxUnavailable) "<nil>" }}
+  {{- if not (kindIs "invalid" .Values.podDisruptionBudget.maxUnavailable) }}
   maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
-  {{- else if ne (toString .Values.podDisruptionBudget.minAvailable) "<nil>" }}
+  {{- else if not (kindIs "invalid" .Values.podDisruptionBudget.minAvailable) }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
   {{- end }}
   selector:
     matchLabels:
       {{- include "http-echo.selectorLabels" . | nindent 6 }}
-{{- end -}}
-{{- end -}}
+{{- end }}

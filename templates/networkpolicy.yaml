@@ -13,6 +13,7 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Same-namespace + any extra peers, all sharing the service port.
     - from:
         - podSelector: {}
         {{- with .Values.networkPolicy.ingressFrom }}
@@ -21,8 +22,11 @@ spec:
       ports:
         - port: http
           protocol: TCP
+    {{- with .Values.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   egress:
-    # Allow DNS resolution against kube-dns / CoreDNS in kube-system.
+    # DNS resolution against kube-dns / CoreDNS in kube-system.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -30,12 +34,15 @@ spec:
           podSelector:
             matchLabels:
               k8s-app: kube-dns
+        {{- with .Values.networkPolicy.egressTo }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       ports:
         - port: 53
           protocol: UDP
         - port: 53
           protocol: TCP
-    {{- with .Values.networkPolicy.egressTo }}
+    {{- with .Values.networkPolicy.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 {{- end }}

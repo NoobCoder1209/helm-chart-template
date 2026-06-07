@@ -208,9 +208,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled":     { "type": "boolean" },
-        "ingressFrom": { "type": "array" },
-        "egressTo":    { "type": "array" }
+        "enabled":      { "type": "boolean" },
+        "ingressFrom":  { "type": "array" },
+        "egressTo":     { "type": "array" },
+        "extraIngress": { "type": "array" },
+        "extraEgress":  { "type": "array" }
       }
     },
     "nodeSelector":  { "type": "object", "additionalProperties": { "type": "string" } },
