@@ -1,10 +1,11 @@
 # Guide — `helm-chart-template`
 
-> **Last verified:** 2026-06-09 against commit `d7e77db1b4b81aefac007b1757712d34b427db8a`
-> on a fresh `kind v0.24.0` cluster (`kindest/node:v1.28.13`). Ran `helm install demo .`
-> end-to-end, `helm test demo` reported `Phase: Succeeded`, in-cluster `curl` to the
-> Service returned `HTTP/1.1 200 OK` with body `hello from helm-chart-template`. The
-> OCI install path (`oci://ghcr.io/noobcoder1209/charts/http-echo --version 0.1.0`)
+> **Last verified:** 2026-06-09 against a fresh `kind v0.24.0` cluster
+> (`kindest/node:v1.28.13`). `helm install demo .` deployed cleanly,
+> `helm test demo` reported `Phase: Succeeded`, and host-side `curl -i
+> http://localhost:8080/` (via `kubectl port-forward`) returned
+> `HTTP/1.1 200 OK` with body `hello from helm-chart-template`. The OCI
+> install path (`oci://ghcr.io/noobcoder1209/charts/http-echo --version 0.1.1`)
 > was also verified end-to-end on the same cluster.
 
 This guide walks someone who has never touched the repo from zero to a running, verified install in about ten minutes. Everything here is plain copy-paste.
@@ -64,11 +65,13 @@ kubectl config use-context kind-demo
 helm install demo . --namespace demo --create-namespace --wait --timeout 5m
 ```
 
-**Path B: install from GHCR (OCI).** This pulls the published `v0.1.0` release; no clone needed.
+**Path B: install from GHCR (OCI).** This pulls the published release; no clone needed.
+
+The package is currently public, so no `helm registry login` is required for `helm install`. (If you fork and republish under your own GHCR namespace, see the env-vars-and-secrets section below — your package will start as private and you'll need to flip it.)
 
 ```sh
 helm install demo oci://ghcr.io/noobcoder1209/charts/http-echo \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --namespace demo --create-namespace --wait --timeout 5m
 ```
 
@@ -96,7 +99,7 @@ Open another terminal:
 curl -i http://localhost:8080/
 ```
 
-You can also visit `http://localhost:8080/` in a browser — see [`docs/screenshots/demo-running.png`](./docs/screenshots/demo-running.png).
+You can also visit `http://localhost:8080/` in a browser. The response body looks like the screenshot in [`docs/screenshots/demo-running.png`](./docs/screenshots/demo-running.png).
 
 ### 1g. Tear down
 
@@ -180,16 +183,20 @@ TEST SUITE:     demo-http-echo-test-connection
 Phase:          Succeeded
 ```
 
-After `curl -i http://localhost:8080/` (step `1f`) you should see:
+After `curl -i http://localhost:8080/` (step `1f`) you should see something like:
 
 ```
 HTTP/1.1 200 OK
 X-App-Name: http-echo
 X-App-Version: 0.2.3
+Date: Tue, 09 Jun 2026 11:15:56 GMT
+Content-Length: 31
 Content-Type: text/plain; charset=utf-8
 
 hello from helm-chart-template
 ```
+
+The `Date` value will differ; everything else should match.
 
 If all three of those are present, the demo worked.
 
@@ -199,7 +206,7 @@ For an extra check, look at the running pods:
 kubectl -n demo get all
 ```
 
-You should see two `demo-http-echo-*` Pods both in `Running 1/1`, one Service `ClusterIP`, one Deployment `2/2`, one ReplicaSet, and (since `replicaCount=2` triggers the PDB gate) one PodDisruptionBudget.
+You should see two `demo-http-echo-*` Pods both in `Running 1/1`, one Service `ClusterIP`, one Deployment `2/2`, one ReplicaSet, and (since `replicaCount=2` triggers the PDB gate) one PodDisruptionBudget. Note that `get all` does **not** include ServiceAccounts, ConfigMaps, or Secrets — to see the SA the chart created, run `kubectl -n demo get sa`.
 
 ## 5. Common failure modes and their fixes
 
@@ -209,7 +216,7 @@ Docker Desktop isn't running. Start it, wait until the whale icon stops animatin
 
 ### `kind create cluster` hangs at "Ensuring node image"
 
-First-time runs pull the ~600 MB node image. On a slow connection it can take several minutes. Increase `--wait 120s` to `--wait 300s` if it times out.
+First-time runs pull the ~600 MB node image. If `kind` reports the control plane never became ready, increase `--wait 120s` to `--wait 300s`, or pre-pull the node image with `docker pull kindest/node:v1.28.13` before retrying. (`--wait` waits for the control plane to be ready, not for the image pull itself, so a slow pull can starve the wait window.)
 
 ### `helm install` errors: `pods is forbidden: User "system:..." cannot create resource "pods"`
 
@@ -217,19 +224,38 @@ Wrong kubectl context. Run `kubectl config use-context kind-demo` and retry. `ku
 
 ### `helm test demo` fails with `pod test-connection failed` / wget timing out
 
-Almost always a NetworkPolicy issue. Check the test pod doesn't share the chart's selectorLabels (this chart's test pod intentionally uses a `-test` suffix on `app.kubernetes.io/name` — see `templates/tests/test-connection.yaml`). If you've forked the chart and modified the labels, restore the divergence.
+Only happens if you've enabled `networkPolicy.enabled=true` (it's `false` by default — the demo above doesn't trip this). When enabled, the NetworkPolicy applies to any pod with the chart's `selectorLabels`, which would include the test pod if it shared them. This chart's test pod intentionally uses a `-test` suffix on `app.kubernetes.io/name` (see `templates/tests/test-connection.yaml`) to stay outside the policy's scope. If you've forked and modified the test pod's labels, restore the divergence.
 
 ### `helm install` rejects values: `at '/replicaCount': got string, want integer`
 
-The JSON schema is doing its job. `--set replicaCount=2` works; `--set-string replicaCount=2` (note the `-string`) sends `"2"` and fails. Drop `-string` for typed values.
+The JSON schema is doing its job. Full output:
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+http-echo:
+- at '/replicaCount': got string, want integer
+```
+`--set replicaCount=2` works; `--set-string replicaCount=2` (note the `-string`) sends `"2"` and fails. Drop `-string` for typed values.
 
-### `helm install` errors: `additional property "replicaCounts" is not allowed`
+### `helm install` errors: `additional properties 'replicaCounts' not allowed`
 
-Typo. The schema's `additionalProperties: false` at the root catches plural-vs-singular slips. Check the values key.
+Typo. The schema's `additionalProperties: false` at the root catches plural-vs-singular slips. Full output:
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+http-echo:
+- at '': additional properties 'replicaCounts' not allowed
+```
+Check the values key.
 
 ### `helm install` errors: `at '/podDisruptionBudget': 'allOf' failed`
 
-You set both `podDisruptionBudget.maxUnavailable` and `podDisruptionBudget.minAvailable`. The k8s PDB spec only allows one. Pick one and unset the other (e.g. `minAvailable: null`).
+You set both `podDisruptionBudget.maxUnavailable` and `podDisruptionBudget.minAvailable`. The k8s PDB spec only allows one. Full output:
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+http-echo:
+- at '/podDisruptionBudget': 'allOf' failed
+  - at '/podDisruptionBudget': 'not' failed
+```
+Pick one and unset the other (e.g. `minAvailable: null`).
 
 ### OCI install fails: `failed to authorize: 401 Unauthorized`
 

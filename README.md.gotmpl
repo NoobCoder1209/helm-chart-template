@@ -5,9 +5,9 @@
 
 ![CI passing](docs/screenshots/ci-passing.png)
 
-The chart in action — `helm install` against a fresh kind cluster, port-forwarded to localhost:
+The chart's response body, served by `hashicorp/http-echo` after `helm install`:
 
-![demo running](docs/screenshots/demo-running.png)
+![demo response](docs/screenshots/demo-running.png)
 
 > **First time here?** Read [`guide.md`](./guide.md) — a copy-paste walkthrough from zero install to a verified `helm test` pass in about ten minutes.
 
@@ -31,6 +31,8 @@ The chart deploys a stateless HTTP service (defaults to [`hashicorp/http-echo`](
 Helm · Kubernetes · GitOps · Production manifests · GitHub Actions · Chart Testing · kubeconform · kube-linter · External Secrets Operator · OCI registries · JSON Schema (draft-07)
 
 ## Quick start
+
+> Need a cluster first? See [`guide.md`](./guide.md) for the full walkthrough including kind setup.
 
 ```sh
 # Local install from this directory:
