@@ -1,0 +1,287 @@
+# Guide — `helm-chart-template`
+
+> **Last verified:** 2026-06-09 against a fresh `kind v0.24.0` cluster
+> (`kindest/node:v1.28.13`). `helm install demo .` deployed cleanly,
+> `helm test demo` reported `Phase: Succeeded`, and host-side `curl -i
+> http://localhost:8080/` (via `kubectl port-forward`) returned
+> `HTTP/1.1 200 OK` with body `hello from helm-chart-template`. The OCI
+> install path (`oci://ghcr.io/noobcoder1209/charts/http-echo --version 0.1.1`)
+> was also verified end-to-end on the same cluster.
+
+This guide walks someone who has never touched the repo from zero to a running, verified install in about ten minutes. Everything here is plain copy-paste.
+
+## What this repo is
+
+A Helm chart starter for a stateless HTTP service. The chart packages a deployment of [`hashicorp/http-echo`](https://hub.docker.com/r/hashicorp/http-echo) (a tiny binary that responds to any HTTP request with a configurable string) along with the surrounding manifests you'd actually want in production: probes, HPA, PDB, NetworkPolicy, optional Ingress, optional ExternalSecret, restricted-PSS securityContext, and a JSON schema that catches bad values at install time.
+
+The "demo" here = installing this chart against a Kubernetes cluster, hitting the Service, and seeing the configured response come back.
+
+## 1. Run the demo end-to-end
+
+### 1a. Prerequisites
+
+You need these CLIs installed and on your `PATH`. Versions in parentheses are what CI uses; nearby versions are fine.
+
+| Tool | Version | Install (macOS) | Install (Linux) |
+|---|---|---|---|
+| Docker | any recent | [Docker Desktop](https://www.docker.com/products/docker-desktop) | distro package |
+| `kind` | v0.24.0 | `brew install kind` | [kind releases](https://github.com/kubernetes-sigs/kind/releases) |
+| `kubectl` | v1.28+ | `brew install kubectl` | [kubectl install](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/) |
+| `helm` | v3.13+ (CI uses v3.16.3) | `brew install helm` | [helm install](https://helm.sh/docs/intro/install/) |
+| `git` | any | preinstalled | preinstalled |
+
+Sanity-check:
+
+```sh
+docker info | head -3
+kind version
+kubectl version --client
+helm version --short
+```
+
+All four should print versions without errors. Docker must show a running daemon — if `docker info` says "Cannot connect to the Docker daemon," start Docker Desktop and retry.
+
+### 1b. Clone the repo
+
+```sh
+git clone https://github.com/NoobCoder1209/helm-chart-template.git
+cd helm-chart-template
+```
+
+### 1c. Bring up a local Kubernetes cluster
+
+```sh
+kind create cluster --name demo --image kindest/node:v1.28.13 --wait 120s
+kubectl config use-context kind-demo
+```
+
+`kind` uses Docker under the hood; it creates a real Kubernetes cluster running inside a Docker container. Takes ~30s.
+
+### 1d. Install the chart (two paths — pick one)
+
+**Path A: install from the local checkout (default).** Useful if you've cloned the repo and want to test changes.
+
+```sh
+helm install demo . --namespace demo --create-namespace --wait --timeout 5m
+```
+
+**Path B: install from GHCR (OCI).** This pulls the published release; no clone needed.
+
+The package is currently public, so no `helm registry login` is required for `helm install`. (If you fork and republish under your own GHCR namespace, see the env-vars-and-secrets section below — your package will start as private and you'll need to flip it.)
+
+```sh
+helm install demo oci://ghcr.io/noobcoder1209/charts/http-echo \
+  --version 0.1.1 \
+  --namespace demo --create-namespace --wait --timeout 5m
+```
+
+Either path should print `STATUS: deployed` and a `NOTES.txt` block with port-forward instructions.
+
+### 1e. Run the chart's smoke test
+
+```sh
+helm test demo --namespace demo --logs
+```
+
+This runs a `helm.sh/hook: test` Pod that does a `wget` against the Service and asserts an `HTTP/.. 200` response.
+
+### 1f. Talk to the app from your laptop
+
+Run this in one terminal:
+
+```sh
+kubectl --namespace demo port-forward svc/demo-http-echo 8080:80
+```
+
+Open another terminal:
+
+```sh
+curl -i http://localhost:8080/
+```
+
+You can also visit `http://localhost:8080/` in a browser. The response body looks like the screenshot in [`docs/screenshots/demo-running.png`](./docs/screenshots/demo-running.png).
+
+### 1g. Tear down
+
+```sh
+# Stop port-forward (Ctrl-C in its terminal), then:
+helm uninstall demo --namespace demo
+kind delete cluster --name demo
+```
+
+## 2. What every meaningful directory and file does
+
+```
+helm-chart-template/
+├── Chart.yaml                      Chart metadata: name, version (chart SemVer), appVersion (image tag), kubeVersion floor, maintainers, icon.
+├── values.yaml                     Default config the user can override. Every key is documented inline; helm-docs reads these comments.
+├── values.schema.json              Draft-07 JSON Schema validating values.yaml at install time. Catches typos, wrong types, enum violations, PDB mutex, env value/valueFrom mutex.
+├── README.md                       Auto-generated by helm-docs from README.md.gotmpl. Don't edit by hand.
+├── README.md.gotmpl                Source-of-truth README template. Hand-written sections + helm-docs placeholders for the values table.
+├── guide.md                        This file.
+├── LICENSE                         MIT.
+├── PLAN.md                         The build plan that produced this repo. Historical / context.
+│
+├── templates/                      Helm templates (the manifests Helm renders).
+│   ├── _helpers.tpl                Standard 6 Helm helpers (chart.name, .fullname, .chart, .labels, .selectorLabels, .serviceAccountName) plus http-echo.defaultAffinity.
+│   ├── deployment.yaml             The workload. Probes, securityContext (pod + container), /tmp emptyDir for readOnlyRootFilesystem, configmap+secret checksum annotations, conditional envFrom.
+│   ├── service.yaml                ClusterIP, named-port `http` end-to-end.
+│   ├── ingress.yaml                Optional Ingress. Disabled by default.
+│   ├── hpa.yaml                    Optional HPA. Disabled by default.
+│   ├── pdb.yaml                    PodDisruptionBudget. Auto-skipped at replicaCount=1 or autoscaling.minReplicas=1 (a PDB on a single-replica workload blocks all evictions).
+│   ├── serviceaccount.yaml         Optional dedicated SA. Fails fast if create=false but annotations are set (catches a common IRSA/Workload-Identity footgun).
+│   ├── configmap.yaml              Optional ConfigMap. Only renders when enabled AND data is non-empty.
+│   ├── secret.yaml                 Optional plain Secret. Mutually exclusive with externalsecret.yaml.
+│   ├── externalsecret.yaml         Optional ExternalSecret (external-secrets.io/v1). Required helper guards secretStoreRef.name.
+│   ├── networkpolicy.yaml          Default-deny ingress + egress, allow same-namespace + kube-dns. extraIngress/extraEgress for distinct-port rules.
+│   ├── NOTES.txt                   What `helm install` prints at the end. Branches on ingress.enabled and service.type.
+│   └── tests/test-connection.yaml  helm.sh/hook test pod. Uses non-overlapping labels so the chart's NetworkPolicy doesn't block its own egress.
+│
+├── ci/                             Values overlays exercised by CI.
+│   ├── minimal-values.yaml         Empty file — asserts the chart installs with pure defaults.
+│   ├── full-values.yaml            Enables ingress, autoscaling, PDB, ConfigMap, Secret, NetworkPolicy, IRSA-style SA annotations, extra env. Smoke install path.
+│   └── externalsecrets-values.yaml ESO toggle on (with a fake SecretStore). Lint-only path — vanilla kind doesn't ship the ESO CRDs.
+│
+├── docs/screenshots/
+│   ├── ci-passing.png              GitHub Actions run showing both smoke matrix entries green.
+│   └── demo-running.png            Response body served by hashicorp/http-echo, captured from the port-forwarded Service during the walkthrough above.
+│
+└── .github/workflows/
+    ├── lint.yml                    On every PR + main push: helm lint, helm template | kubeconform, kube-linter, helm-docs freshness gate.
+    ├── smoke.yml                   On every PR + main push: kind 1.28 cluster, helm install + helm test against minimal-values and full-values.
+    └── release.yml                 On v* tag push: verifies tag matches Chart.yaml version, helm package, helm push to oci://ghcr.io/<owner>/charts.
+```
+
+## 3. Env vars and secrets
+
+**For running the demo:** none. The chart's defaults work against a fresh kind cluster with no external dependencies.
+
+**For developing the chart locally:** none beyond standard Kubernetes credentials. `kubectl` and `helm` use whatever context your `~/.kube/config` points at.
+
+**For CI:** GitHub Actions provides `${{ secrets.GITHUB_TOKEN }}` automatically. `release.yml` uses it to authenticate to GHCR via `helm registry login --password-stdin`. The job's `permissions: { contents: read, packages: write }` block grants the token enough scope to push the chart. **You do not need to add any repo secret manually** — `GITHUB_TOKEN` is built in.
+
+**If you fork this repo and publish to your own GHCR:**
+- The first OCI push creates the package as **private** by default. To make it pullable anonymously, link the package to its source repository (Package settings → "Inherit access from source repository") and make sure the repo is public. Or open the package's "Change visibility" → Public manually, once.
+
+**If you flip on the ExternalSecrets path:**
+- You need the [External Secrets Operator](https://external-secrets.io) installed in the cluster: `helm repo add external-secrets https://charts.external-secrets.io && helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace`.
+- You need a configured `SecretStore` (or `ClusterSecretStore`) pointing at your secret backend (Vault, AWS SM, GCP SM, etc.). The chart only renders the `ExternalSecret` resource — it doesn't manage the backing store.
+
+## 4. How to verify the demo actually worked
+
+After step `1d` you should see:
+
+```
+STATUS: deployed
+REVISION: 1
+```
+
+After step `1e` you should see:
+
+```
+TEST SUITE:     demo-http-echo-test-connection
+Phase:          Succeeded
+```
+
+After `curl -i http://localhost:8080/` (step `1f`) you should see something like:
+
+```
+HTTP/1.1 200 OK
+X-App-Name: http-echo
+X-App-Version: 0.2.3
+Date: Tue, 09 Jun 2026 11:15:56 GMT
+Content-Length: 31
+Content-Type: text/plain; charset=utf-8
+
+hello from helm-chart-template
+```
+
+The `Date` value will differ; everything else should match.
+
+If all three of those are present, the demo worked.
+
+For an extra check, look at the running pods:
+
+```sh
+kubectl -n demo get all
+```
+
+You should see two `demo-http-echo-*` Pods both in `Running 1/1`, one Service `ClusterIP`, one Deployment `2/2`, one ReplicaSet, and (since `replicaCount=2` triggers the PDB gate) one PodDisruptionBudget. Note that `get all` does **not** include ServiceAccounts, ConfigMaps, or Secrets — to see the SA the chart created, run `kubectl -n demo get sa`.
+
+## 5. Common failure modes and their fixes
+
+### "Cannot connect to the Docker daemon"
+
+Docker Desktop isn't running. Start it, wait until the whale icon stops animating, retry `kind create cluster`.
+
+### `kind create cluster` hangs at "Ensuring node image"
+
+First-time runs pull the ~600 MB node image. If `kind` reports the control plane never became ready, increase `--wait 120s` to `--wait 300s`, or pre-pull the node image with `docker pull kindest/node:v1.28.13` before retrying. (`--wait` waits for the control plane to be ready, not for the image pull itself, so a slow pull can starve the wait window.)
+
+### `helm install` errors: `pods is forbidden: User "system:..." cannot create resource "pods"`
+
+Wrong kubectl context. Run `kubectl config use-context kind-demo` and retry. `kubectl config current-context` should print `kind-demo`.
+
+### `helm test demo` fails with `pod test-connection failed` / wget timing out
+
+Only happens if you've enabled `networkPolicy.enabled=true` (it's `false` by default — the demo above doesn't trip this). When enabled, the NetworkPolicy applies to any pod with the chart's `selectorLabels`, which would include the test pod if it shared them. This chart's test pod intentionally uses a `-test` suffix on `app.kubernetes.io/name` (see `templates/tests/test-connection.yaml`) to stay outside the policy's scope. If you've forked and modified the test pod's labels, restore the divergence.
+
+### `helm install` rejects values: `at '/replicaCount': got string, want integer`
+
+The JSON schema is doing its job. Full output:
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+http-echo:
+- at '/replicaCount': got string, want integer
+```
+`--set replicaCount=2` works; `--set-string replicaCount=2` (note the `-string`) sends `"2"` and fails. Drop `-string` for typed values.
+
+### `helm install` errors: `additional properties 'replicaCounts' not allowed`
+
+Typo. The schema's `additionalProperties: false` at the root catches plural-vs-singular slips. Full output:
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+http-echo:
+- at '': additional properties 'replicaCounts' not allowed
+```
+Check the values key.
+
+### `helm install` errors: `at '/podDisruptionBudget': 'allOf' failed`
+
+You set both `podDisruptionBudget.maxUnavailable` and `podDisruptionBudget.minAvailable`. The k8s PDB spec only allows one. Full output:
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+http-echo:
+- at '/podDisruptionBudget': 'allOf' failed
+  - at '/podDisruptionBudget': 'not' failed
+```
+Pick one and unset the other (e.g. `minAvailable: null`).
+
+### OCI install fails: `failed to authorize: 401 Unauthorized`
+
+The chart's GHCR package is private. Either run `helm registry login ghcr.io -u <username> -p <gh-pat-with-read-packages>`, or ask the package owner to flip it public (Package settings → Change visibility → Public).
+
+### Port-forward errors: `error: port 8080 already in use`
+
+Another process is already on `:8080`. Pick a free port: `kubectl -n demo port-forward svc/demo-http-echo 9000:80` and curl `http://localhost:9000/` instead.
+
+### `kind delete cluster` leaves dangling Docker containers
+
+Rare, but: `docker ps -a | grep kind` and `docker rm -f <id>` for each. Or `docker system prune` to clear everything.
+
+### `helm test --logs` errors: `unable to get pod logs for ...: pods "..." not found`
+
+The test pod's `helm.sh/hook-delete-policy` was set to `before-hook-creation,hook-succeeded`, deleting the pod before logs could be fetched. This chart sets it to `before-hook-creation` only for exactly that reason; if you've forked and changed it, revert.
+
+---
+
+## Appendix: regenerate this README's screenshots from scratch
+
+```sh
+# CI screenshot: open https://github.com/NoobCoder1209/helm-chart-template/actions
+# of any green run on main, screenshot the run summary at 1400×900.
+
+# Demo response screenshot: with the port-forward running from step 1f,
+# capture the response body. Either curl http://localhost:8080/ and
+# screenshot the terminal, or open it in a browser and screenshot the page.
+```
