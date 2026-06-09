@@ -5,6 +5,12 @@
 
 ![CI passing](docs/screenshots/ci-passing.png)
 
+The chart in action — `helm install` against a fresh kind cluster, port-forwarded to localhost:
+
+![demo running](docs/screenshots/demo-running.png)
+
+> **First time here?** Read [`guide.md`](./guide.md) — a copy-paste walkthrough from zero install to a verified `helm test` pass in about ten minutes.
+
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.2.3](https://img.shields.io/badge/AppVersion-0.2.3-informational?style=flat-square)
 
 The chart deploys a stateless HTTP service (defaults to [`hashicorp/http-echo`](https://hub.docker.com/r/hashicorp/http-echo)) with the manifests you'd actually want in production — non-root + read-only-root-fs `securityContext`, pinned image tag, startup/liveness/readiness probes, HPA, PDB, NetworkPolicy, optional Ingress, optional ExternalSecret, default soft pod-anti-affinity, and a JSON schema that fails fast on bad values.
