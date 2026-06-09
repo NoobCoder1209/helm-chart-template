@@ -144,7 +144,7 @@ helm-chart-template/
 │
 ├── docs/screenshots/
 │   ├── ci-passing.png              GitHub Actions run showing both smoke matrix entries green.
-│   └── demo-running.png            Browser hitting http://localhost:8080/ during the `helm install demo .` walkthrough above.
+│   └── demo-running.png            Response body served by hashicorp/http-echo, captured from the port-forwarded Service during the walkthrough above.
 │
 └── .github/workflows/
     ├── lint.yml                    On every PR + main push: helm lint, helm template | kubeconform, kube-linter, helm-docs freshness gate.
@@ -281,6 +281,7 @@ The test pod's `helm.sh/hook-delete-policy` was set to `before-hook-creation,hoo
 # CI screenshot: open https://github.com/NoobCoder1209/helm-chart-template/actions
 # of any green run on main, screenshot the run summary at 1400×900.
 
-# Demo screenshot: with the port-forward running from step 1f, open
-# http://localhost:8080/ in a browser and screenshot the body.
+# Demo response screenshot: with the port-forward running from step 1f,
+# capture the response body. Either curl http://localhost:8080/ and
+# screenshot the terminal, or open it in a browser and screenshot the page.
 ```
